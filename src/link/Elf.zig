@@ -4065,27 +4065,14 @@ pub fn allocateNonAllocSections(self: *Elf) !void {
             shdr.sh_size = 0;
             const new_offset = try self.findFreeSpace(needed_size, shdr.sh_addralign);
 
-            if (self.zigObjectPtr()) |zo| blk: {
-                const existing_size = for ([_]?Symbol.Index{
-                    zo.debug_info_index,
-                    zo.debug_abbrev_index,
-                    zo.debug_aranges_index,
-                    zo.debug_str_index,
-                    zo.debug_line_index,
-                    zo.debug_line_str_index,
-                    zo.debug_loclists_index,
-                    zo.debug_rnglists_index,
-                }) |maybe_sym_index| {
-                    const sym_index = maybe_sym_index orelse continue;
-                    const sym = zo.symbol(sym_index);
-                    const atom_ptr = sym.atom(self).?;
-                    if (atom_ptr.output_section_index == shndx) break atom_ptr.size;
-                } else break :blk;
-                log.debug("moving {s} from 0x{x} to 0x{x}", .{
-                    self.getShString(shdr.sh_name),
-                    shdr.sh_offset,
-                    new_offset,
-                });
+            log.debug("moving {s} from 0x{x} to 0x{x}", .{
+                self.getShString(shdr.sh_name),
+                shdr.sh_offset,
+                new_offset,
+            });
+
+            if (shdr.sh_offset > 0) {
+                const existing_size = self.sectionSize(@intCast(shndx));
                 const amt = try self.base.file.?.copyRangeAll(
                     shdr.sh_offset,
                     self.base.file.?,

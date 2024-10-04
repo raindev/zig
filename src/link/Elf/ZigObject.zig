@@ -1981,7 +1981,7 @@ fn writeTrampoline(tr_sym: Symbol, target: Symbol, elf_file: *Elf) !void {
     }
 }
 
-fn allocateAtom(self: *ZigObject, atom_ptr: *Atom, elf_file: *Elf) !void {
+pub fn allocateAtom(self: *ZigObject, atom_ptr: *Atom, elf_file: *Elf) !void {
     const alloc_res = try elf_file.allocateChunk(.{
         .shndx = atom_ptr.output_section_index,
         .size = atom_ptr.size,
@@ -2012,12 +2012,6 @@ fn allocateAtom(self: *ZigObject, atom_ptr: *Atom, elf_file: *Elf) !void {
         }
     }
     shdr.sh_addralign = @max(shdr.sh_addralign, atom_ptr.alignment.toByteUnits().?);
-
-    if (self.sectionSymbol(atom_ptr.output_section_index, elf_file)) |sym| {
-        assert(sym.atom(elf_file) == null and sym.mergeSubsection(elf_file) == null);
-        const esym = &self.symtab.items(.elf_sym)[sym.esym_index];
-        esym.st_size += atom_ptr.size + Elf.padToIdeal(atom_ptr.size);
-    }
 
     // This function can also reallocate an atom.
     // In this case we need to "unplug" it from its previous location before

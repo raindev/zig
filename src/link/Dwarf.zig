@@ -389,14 +389,10 @@ pub const Section = struct {
         if (dwarf.bin_file.cast(.elf)) |elf_file| {
             const zo = elf_file.zigObjectPtr().?;
             const atom = zo.symbol(sec.index).atom(elf_file).?;
-            const shndx = atom.output_section_index;
-            const needed_size = len;
-            const min_alignment = sec.alignment.toByteUnits().?;
-            try elf_file.growSection(shndx, needed_size, min_alignment);
-            const shdr = elf_file.sections.items(.shdr)[shndx];
-            atom.size = needed_size;
-            atom.alignment = InternPool.Alignment.fromNonzeroByteUnits(shdr.sh_addralign);
-            sec.len = needed_size;
+            atom.size = len;
+            atom.alignment = sec.alignment;
+            sec.len = len;
+            try zo.allocateAtom(atom, elf_file);
         } else if (dwarf.bin_file.cast(.macho)) |macho_file| {
             const header = if (macho_file.d_sym) |*d_sym| header: {
                 try d_sym.growSection(@intCast(sec.index), len, true, macho_file);
@@ -417,11 +413,7 @@ pub const Section = struct {
         if (dwarf.bin_file.cast(.elf)) |elf_file| {
             const zo = elf_file.zigObjectPtr().?;
             const atom = zo.symbol(sec.index).atom(elf_file).?;
-            const shndx = atom.output_section_index;
-            const shdr = &elf_file.sections.items(.shdr)[shndx];
             atom.size = sec.len;
-            shdr.sh_offset += len;
-            shdr.sh_size = sec.len;
         } else if (dwarf.bin_file.cast(.macho)) |macho_file| {
             const header = if (macho_file.d_sym) |*d_sym|
                 &d_sym.sections.items[sec.index]
@@ -910,11 +902,9 @@ const Entry = struct {
         if (std.debug.runtime_safety) {
             log.err("missing {} from {s}", .{
                 @as(Entry.Index, @enumFromInt(entry - unit.entries.items.ptr)),
-                std.mem.sliceTo(if (dwarf.bin_file.cast(.elf)) |elf_file| sh_name: {
-                    const zo = elf_file.zigObjectPtr().?;
-                    const shndx = zo.symbol(sec.index).atom(elf_file).?.output_section_index;
-                    break :sh_name elf_file.shstrtab.items[elf_file.sections.items(.shdr)[shndx].sh_name..];
-                } else if (dwarf.bin_file.cast(.macho)) |macho_file|
+                std.mem.sliceTo(if (dwarf.bin_file.cast(.elf)) |elf_file|
+                    elf_file.zigObjectPtr().?.symbol(sec.index).name(elf_file)
+                else if (dwarf.bin_file.cast(.macho)) |macho_file|
                     if (macho_file.d_sym) |*d_sym|
                         &d_sym.sections.items[sec.index].segname
                     else
