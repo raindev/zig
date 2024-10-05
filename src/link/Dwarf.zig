@@ -389,10 +389,23 @@ pub const Section = struct {
         if (dwarf.bin_file.cast(.elf)) |elf_file| {
             const zo = elf_file.zigObjectPtr().?;
             const atom = zo.symbol(sec.index).atom(elf_file).?;
+            const old_size = atom.size;
+            const old_off = atom.value;
             atom.size = len;
             atom.alignment = sec.alignment;
             sec.len = len;
-            try zo.allocateAtom(atom, elf_file);
+            if (old_size > 0) {
+                const capacity = atom.fileCapacity(elf_file);
+                const need_realloc = len > capacity or !sec.alignment.check(@intCast(atom.value));
+                if (need_realloc) {
+                    if (!atom.alignment.check(@intCast(atom.value)) or atom.size > atom.fileCapacity(elf_file)) {
+                        try zo.allocateAtom(atom, elf_file);
+                    }
+                    log.debug("moving {s} from 0x{x} to 0x{x}", .{ atom.name(elf_file), old_off, atom.value });
+                }
+            } else {
+                try zo.allocateAtom(atom, elf_file);
+            }
         } else if (dwarf.bin_file.cast(.macho)) |macho_file| {
             const header = if (macho_file.d_sym) |*d_sym| header: {
                 try d_sym.growSection(@intCast(sec.index), len, true, macho_file);
@@ -413,6 +426,7 @@ pub const Section = struct {
         if (dwarf.bin_file.cast(.elf)) |elf_file| {
             const zo = elf_file.zigObjectPtr().?;
             const atom = zo.symbol(sec.index).atom(elf_file).?;
+            atom.value += len;
             atom.size = sec.len;
         } else if (dwarf.bin_file.cast(.macho)) |macho_file| {
             const header = if (macho_file.d_sym) |*d_sym|

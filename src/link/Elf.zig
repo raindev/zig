@@ -679,13 +679,6 @@ pub fn allocateChunk(self: *Elf, args: struct {
         }
     };
 
-    log.debug("allocated chunk (size({x}),align({x})) at 0x{x} (file(0x{x}))", .{
-        args.size,
-        args.alignment.toByteUnits().?,
-        shdr.sh_addr + res.value,
-        shdr.sh_offset + res.value,
-    });
-
     const expand_section = if (self.atom(res.placement)) |placement_atom|
         placement_atom.nextAtom(self) == null
     else
@@ -694,6 +687,18 @@ pub fn allocateChunk(self: *Elf, args: struct {
         const needed_size = res.value + args.size;
         try self.growSection(args.shndx, needed_size, args.alignment.toByteUnits().?);
     }
+
+    log.debug("allocated chunk (size({x}),align({x})) in {s} at 0x{x} (file(0x{x}))", .{
+        args.size,
+        args.alignment.toByteUnits().?,
+        self.getShString(shdr.sh_name),
+        shdr.sh_addr + res.value,
+        shdr.sh_offset + res.value,
+    });
+    log.debug("  placement {}, {s}", .{
+        res.placement,
+        if (self.atom(res.placement)) |atom_ptr| atom_ptr.name(self) else "",
+    });
 
     return res;
 }
